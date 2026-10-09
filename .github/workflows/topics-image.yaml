@@ -1,0 +1,99 @@
+name: topics-image
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag (default: <latest upstream tag>-topics.<run number>)"
+        required: false
+        type: string
+  push:
+    branches:
+      - topics-api
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ntfy
+          POSTGRES_PASSWORD: ntfy
+          POSTGRES_DB: ntfy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ntfy"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      NTFY_TEST_DATABASE_URL: "postgres://ntfy:ntfy@localhost:5432/ntfy_test?sslmode=disable"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: './web/package-lock.json'
+      - name: Build web app (required for the static site tests)
+        run: make web
+      - name: Create placeholder docs (required to compile the server)
+        run: make cli-deps-static-sites
+      - name: Run message cache and server tests
+        run: go test ./message/ ./server/
+  image:
+    needs: test
+    # Only publish from the fork's own branch, or when a tag is given by hand
+    if: github.ref == 'refs/heads/topics-api' || inputs.tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Determine image name and tag
+        id: meta
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          owner="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          tag="$INPUT_TAG"
+          if [ -z "$tag" ]; then
+            # Upstream release tags only: skip our own (v2.18.0-topics.3) and pre-releases (v2.19.0-rc1)
+            base="$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' --exclude '*-*')"
+            if ! [[ "$base" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Unexpected base tag: $base" >&2
+              exit 1
+            fi
+            tag="${base}-topics.${{ github.run_number }}"
+          fi
+          echo "image=ghcr.io/${owner}/ntfy:${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag}" >> "$GITHUB_OUTPUT"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.topics
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.image }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            COMMIT=${{ github.sha }}
