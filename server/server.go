@@ -1850,11 +1850,15 @@ func (s *Server) sendOldMessages(w http.ResponseWriter, topics []*topic, since m
 	}
 	messages := make([]*model.Message, 0)
 	truncated := false
+	marker := since.ID()
 	since = s.lagSince(since)
 	for _, t := range topics {
 		topicMessages, topicTruncated, err := s.messageCache.MessagesCapped(t.ID, since, scheduled, s.config.MessagePollSizeLimit)
 		if err != nil {
 			return err
+		}
+		if !since.IsID() && marker != "" {
+			topicMessages = withoutMessage(topicMessages, marker) // A lagged replay overlaps the marker, which the client has by definition
 		}
 		truncated = truncated || topicTruncated
 		messages = append(messages, topicMessages...)
@@ -1875,6 +1879,17 @@ func (s *Server) sendOldMessages(w http.ResponseWriter, topics []*topic, since m
 		}
 	}
 	return nil
+}
+
+// withoutMessage drops the message with the given id, in place
+func withoutMessage(messages []*model.Message, id string) []*model.Message {
+	out := messages[:0]
+	for _, m := range messages {
+		if m.ID != id {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // parseSince returns a timestamp identifying the time span from which cached messages should be received.

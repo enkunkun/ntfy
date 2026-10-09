@@ -468,7 +468,7 @@ func TestServer_Cluster_SinceIDReplaysWithOverlapInACluster(t *testing.T) {
 	clustered := newTestServer(t, conf)
 	require.Nil(t, clustered.messageCache.AddMessages([]*model.Message{marker, older}))
 	messages := toMessages(t, request(t, clustered, "GET", "/mytopic/json?poll=1&since="+marker.ID, "", nil).Body.String())
-	require.Len(t, messages, 2)
+	require.Len(t, messages, 1) // The overlap, but never the marker itself: the client has that one by definition
 	require.Equal(t, "published first, flushed last", messages[0].Message)
 }
 
@@ -674,6 +674,6 @@ func TestServer_Cluster3_ReconnectCoversOutOfOrderRowIDs(t *testing.T) {
 	})
 
 	messages := toMessages(t, request(t, b.Server, "GET", "/alerts/json?poll=1&since="+y.ID, "", nil).Body.String())
-	require.Len(t, messages, 2) // X, and Y again (the overlap), which the client drops by id
+	require.Len(t, messages, 1) // X; never Y itself, which the client has by definition
 	require.Equal(t, x.ID, messages[0].ID)
 }

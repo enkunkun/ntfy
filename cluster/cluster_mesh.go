@@ -23,7 +23,7 @@ const (
 	meshHTTPTimeout   = 5 * time.Second
 	peerHealthTimeout = 2 * time.Second // Per-peer health probe while this node is unhealthy
 	peerQueueSize     = 1024            // Bounded per-peer fan-out queue (drop on overflow)
-	gapMaxTopics      = 256             // Beyond this many gapped topics for one peer, report GapAllTopics instead
+	gapMaxTopics      = 10000           // Beyond this many gapped topics for one peer, report GapAllTopics instead; a 25s outage at ntfy.sh rates gaps ~1300
 	batchMaxMessages  = 100             // Flush a batch early when it reaches this many messages
 	batchMaxBytes     = 256 * 1024      // Flush a batch early when it reaches this size
 	stateMaxBytes     = 1024 * 1024     // Upper bound for inbound state bodies (announcements, cancels)
