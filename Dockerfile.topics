@@ -1,0 +1,42 @@
+# Self-contained build of the ntfy server (web app included, docs omitted).
+#
+#   docker build -f Dockerfile.topics -t ntfy:dev .
+#
+# Unlike Dockerfile-build, this copies the whole source tree, so new Go packages
+# are picked up without changes here. The docs are replaced by a placeholder page.
+
+FROM node:22-alpine AS web
+WORKDIR /app/web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+# Same steps as "make web-build"
+RUN npm run build \
+    && mv build/index.html build/app.html \
+    && rm -f build/config.js
+
+FROM golang:1.25 AS builder
+ARG VERSION=dev
+ARG COMMIT=unknown
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+# Drop static sites left over from local builds, then use the fresh web app
+RUN rm -rf server/site server/docs
+COPY --from=web /app/web/build ./server/site
+# Same as "make cli-linux-server", with a placeholder for the docs ("make cli-deps-static-sites")
+RUN mkdir -p server/docs \
+    && touch server/docs/index.html \
+    && CGO_ENABLED=1 go build \
+        -o /out/ntfy \
+        -tags sqlite_omit_load_extension,osusergo,netgo \
+        -ldflags "-linkmode=external -extldflags=-static -s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=$(date +%s)"
+
+FROM alpine:3.22
+LABEL org.opencontainers.image.licenses="Apache-2.0, GPL-2.0"
+LABEL org.opencontainers.image.title="ntfy"
+RUN apk add --no-cache tzdata
+COPY --from=builder /out/ntfy /usr/bin/ntfy
+EXPOSE 80/tcp
+ENTRYPOINT ["ntfy"]
