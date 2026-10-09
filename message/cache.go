@@ -62,6 +62,7 @@ type queries struct {
 	updateMessagePublished           string
 	selectMessagesCount              string
 	selectTopics                     string
+	selectTopicsWithLastTime         string
 	markExpiredAttachmentsDeleted    string
 	selectAttachmentsSizeBySender    string
 	selectAttachmentsSizeByUserID    string

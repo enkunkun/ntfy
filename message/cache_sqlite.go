@@ -73,6 +73,7 @@ const (
 	sqliteUpdateMessagePublishedQuery = `UPDATE messages SET published = 1 WHERE mid = ?`
 	sqliteSelectMessagesCountQuery    = `SELECT COUNT(*) FROM messages`
 	sqliteSelectTopicsQuery           = `SELECT topic FROM messages GROUP BY topic`
+	sqliteSelectTopicsWithLastTime    = `SELECT topic, MAX(time) FROM messages WHERE published = 1 AND event = 'message' GROUP BY topic`
 
 	sqliteDeleteExpiredMessagesQuery         = `DELETE FROM messages WHERE mid IN (SELECT mid FROM messages WHERE expires <= ? AND published = 1 LIMIT ?)`
 	sqliteMarkExpiredAttachmentsDeletedQuery = `UPDATE messages SET attachment_deleted = 1 WHERE mid IN (SELECT mid FROM messages WHERE attachment_expires > 0 AND attachment_expires <= ? AND attachment_deleted = 0 LIMIT ?)`
@@ -102,6 +103,7 @@ var sqliteQueries = queries{
 	updateMessagePublished:           sqliteUpdateMessagePublishedQuery,
 	selectMessagesCount:              sqliteSelectMessagesCountQuery,
 	selectTopics:                     sqliteSelectTopicsQuery,
+	selectTopicsWithLastTime:         sqliteSelectTopicsWithLastTime,
 	markExpiredAttachmentsDeleted:    sqliteMarkExpiredAttachmentsDeletedQuery,
 	selectAttachmentsSizeBySender:    sqliteSelectAttachmentsSizeBySenderQuery,
 	selectAttachmentsSizeByUserID:    sqliteSelectAttachmentsSizeByUserIDQuery,

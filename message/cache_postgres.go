@@ -75,7 +75,8 @@ const (
 		FROM pg_class
 		WHERE oid = 'message'::regclass
 	`
-	postgresSelectTopicsQuery = `SELECT topic FROM message GROUP BY topic`
+	postgresSelectTopicsQuery        = `SELECT topic FROM message GROUP BY topic`
+	postgresSelectTopicsWithLastTime = `SELECT topic, MAX(time) FROM message WHERE published = TRUE AND event = 'message' GROUP BY topic`
 
 	postgresDeleteExpiredMessagesQuery         = `DELETE FROM message WHERE mid IN (SELECT mid FROM message WHERE expires <= $1 AND published = TRUE LIMIT $2)`
 	postgresMarkExpiredAttachmentsDeletedQuery = `UPDATE message SET attachment_deleted = TRUE WHERE mid IN (SELECT mid FROM message WHERE attachment_expires > 0 AND attachment_expires <= $1 AND attachment_deleted = FALSE LIMIT $2)`
@@ -121,6 +122,7 @@ var postgresQueries = queries{
 	updateMessagePublished:           postgresUpdateMessagePublishedQuery,
 	selectMessagesCount:              postgresSelectMessagesCountQuery,
 	selectTopics:                     postgresSelectTopicsQuery,
+	selectTopicsWithLastTime:         postgresSelectTopicsWithLastTime,
 	markExpiredAttachmentsDeleted:    postgresMarkExpiredAttachmentsDeletedQuery,
 	selectAttachmentsSizeBySender:    postgresSelectAttachmentsSizeBySenderQuery,
 	selectAttachmentsSizeByUserID:    postgresSelectAttachmentsSizeByUserIDQuery,
